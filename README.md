@@ -2,7 +2,7 @@
 
 Small Playwright helper for UofT recreation booking pages.
 
-It does not bypass reCAPTCHA. It opens or connects to a real browser, waits until the configured time, refreshes the booking page, clicks the matching `Book Now` button when it appears, then leaves the browser open for you to finish any captcha/confirmation step.
+It does not bypass reCAPTCHA. It opens or connects to a real browser, waits until the configured time, opens one worker tab per court, selects the configured date/court in each tab, refreshes the booking page, clicks the matching `Book Now` button when it appears, then stops the other workers and leaves the browser open for you to finish any captcha/confirmation step.
 
 ## Setup
 
@@ -18,7 +18,8 @@ Edit `.env`:
 ```txt
 BOOKING_URL=...
 TARGET_SLOT=8 - 8:55 PM
-TARGET_FACILITY=Court 03-AC-Badminton
+TARGET_DATE=2026-06-16
+TARGET_FACILITIES=Court 01-AC-Badminton,Court 02-AC-Badminton,Court 03-AC-Badminton
 START_AT=19:59:55
 ```
 
@@ -28,7 +29,7 @@ START_AT=19:59:55
 npm start
 ```
 
-The script opens a visible Chromium window. Log in, get to the booking page, select anything you need manually, then press Enter in the terminal. The script waits until `START_AT`, refreshes until your slot appears, and clicks it.
+The script opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, wait until `START_AT`, refresh until your slot appears, and click the first available one.
 
 ## Connect To Your Own Chrome
 
