@@ -34,7 +34,7 @@ npm start
 
 The script first shows a numbered time-slot menu. Press Enter to use `TARGET_SLOTS`, or enter a priority list such as `13,12,11`, `11-13`, `pm`, or `all`. It then opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, wait until `START_AT`, refresh until one of your selected slots appears, click the first available match by priority, and keep looping until the page reports booking success.
 
-## Use Your Default Chrome Login
+## Use A Persistent Chrome Login
 
 Run one command:
 
@@ -42,7 +42,9 @@ Run one command:
 npm run start:default-chrome
 ```
 
-It starts your normal Google Chrome profile with remote debugging, then connects the booking script to it, so your existing UofT login cookies should be available. If regular Chrome is already open and cannot accept the debug flag, the script will ask whether to quit Chrome and restart it in debug mode.
+It starts a dedicated Chrome profile at `.chrome-debug-profile` with remote debugging, then connects the booking script to it. Chrome no longer allows remote debugging against your normal default profile, so the first run may require login once. After that, this dedicated profile keeps your UofT login cookies for future runs.
+
+If regular Chrome is already open and blocks debug startup, the script will ask whether to quit Chrome and start the booking profile.
 
 To verify Chrome is really in debug mode, open:
 

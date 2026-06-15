@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
+import path from 'node:path';
 import { askQuestion } from './lib.js';
 
 const cdpUrl = process.env.CDP_URL || 'http://127.0.0.1:9222';
 const chromePath = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromeUserDataDir = path.resolve(process.env.CHROME_USER_DATA_DIR || '.chrome-debug-profile');
 const debugPort = new URL(cdpUrl).port || '9222';
 
 await main();
@@ -17,8 +19,8 @@ async function main() {
 
   if (await isRegularChromeRunning()) {
     console.log('Google Chrome is already running, but the debug port is not open.');
-    console.log('macOS will reuse that existing non-debug Chrome process unless it is quit first.');
-    const answer = (await askQuestion('Quit Chrome and restart it in debug mode now? [Y/n] ')).trim().toLowerCase();
+    console.log('Chrome may reuse that existing non-debug process unless it is quit first.');
+    const answer = (await askQuestion('Quit regular Chrome and start the booking Chrome profile? [Y/n] ')).trim().toLowerCase();
     if (answer && !['y', 'yes'].includes(answer)) {
       console.log('Cancelled. Quit Chrome manually, then run npm run start:default-chrome again.');
       process.exitCode = 1;
@@ -28,13 +30,13 @@ async function main() {
     await delay(1500);
   }
 
-  console.log('Starting your default Google Chrome profile in debug mode...');
+  console.log(`Starting booking Chrome profile in debug mode: ${chromeUserDataDir}`);
   let chromeProcess = startChromeDebug();
 
   if (!await waitForCdp(6000)) {
     console.log('\nChrome debug port did not open.');
-    console.log('This usually means regular Chrome is already running and reused the old non-debug session.');
-    const answer = (await askQuestion('Quit Chrome and restart it in debug mode now? [Y/n] ')).trim().toLowerCase();
+    console.log('This usually means Chrome reused an existing non-debug session.');
+    const answer = (await askQuestion('Quit Chrome and restart the booking Chrome profile? [Y/n] ')).trim().toLowerCase();
     if (answer && !['y', 'yes'].includes(answer)) {
       console.log('Cancelled. Quit Chrome manually, then run npm run start:default-chrome again.');
       process.exitCode = 1;
@@ -62,6 +64,7 @@ async function main() {
 function startChromeDebug() {
   return spawn(chromePath, [
     `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${chromeUserDataDir}`,
     '--no-first-run',
     '--no-default-browser-check',
     '--restore-last-session',

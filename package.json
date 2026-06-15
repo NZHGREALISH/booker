@@ -7,7 +7,7 @@
     "install:browsers": "playwright install chromium",
     "start": "node src/booker.js",
     "start:cdp": "BOOKER_MODE=cdp node src/booker.js",
-    "chrome:debug": "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222",
+    "chrome:debug": "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222 --user-data-dir=.chrome-debug-profile",
     "start:chrome": "node src/start-default-chrome.js",
     "start:default-chrome": "node src/start-default-chrome.js",
     "test:click": "node src/test-click.js",
