@@ -36,20 +36,13 @@ The script first shows a numbered time-slot menu. Press Enter to use `TARGET_SLO
 
 ## Use Your Default Chrome Login
 
-Quit Google Chrome completely first, then start it in debug mode using your normal Chrome profile:
+Run one command:
 
 ```bash
-npm run chrome:debug
+npm run start:default-chrome
 ```
 
-Leave that terminal running. In a second terminal, run:
-
-```bash
-cd /Users/grealish/Downloads/uoft-badminton-booker
-npm run start:chrome
-```
-
-This connects to the Chrome session on `http://127.0.0.1:9222`, so your existing UofT login cookies should be available. If Chrome was already open before `npm run chrome:debug`, quit it and try again.
+It starts your normal Google Chrome profile with remote debugging, then connects the booking script to it, so your existing UofT login cookies should be available. If regular Chrome is already open and cannot accept the debug flag, the script will ask whether to quit Chrome and restart it in debug mode.
 
 ## Test One Click
 

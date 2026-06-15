@@ -8,7 +8,8 @@
     "start": "node src/booker.js",
     "start:cdp": "BOOKER_MODE=cdp node src/booker.js",
     "chrome:debug": "/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222",
-    "start:chrome": "BOOKER_MODE=cdp node src/booker.js",
+    "start:chrome": "node src/start-default-chrome.js",
+    "start:default-chrome": "node src/start-default-chrome.js",
     "test:click": "node src/test-click.js",
     "test:menu": "SKIP_BOOKER_MAIN=true node src/test-menu-parser.js"
   },
