@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import {
+  askQuestion,
   boolEnv,
   clickTargetSlotIfAvailable,
   csvEnv,
@@ -14,49 +15,76 @@ import {
   waitForSlotsToSettle,
 } from './lib.js';
 
-const config = {
-  bookingUrl: requiredEnv('BOOKING_URL'),
-  targetSlots: csvEnv('TARGET_SLOTS', optionalSingleEnv('TARGET_SLOT')),
-  targetDate: process.env.TARGET_DATE?.trim() || '',
-  targetDateText: process.env.TARGET_DATE_TEXT?.trim() || '',
-  targetFacilities: csvEnv('TARGET_FACILITIES', [
-    'Court 01-AC-Badminton',
-    'Court 02-AC-Badminton',
-    'Court 03-AC-Badminton',
-  ]),
-  startAt: process.env.START_AT?.trim() || '',
-  refreshMs: Number(process.env.REFRESH_MS || 650),
-  timeoutSeconds: Number(process.env.TIMEOUT_SECONDS || 180),
-  loopUntilSuccess: boolEnv('LOOP_UNTIL_SUCCESS', true),
-  bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
-  mode: process.env.BOOKER_MODE || 'persistent',
-  cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
-  userDataDir: process.env.USER_DATA_DIR || '.browser-profile',
-};
+const BOOKING_SLOT_MENU = [
+  '7 - 7:55 AM',
+  '8 - 8:55 AM',
+  '9 - 9:55 AM',
+  '10 - 10:55 AM',
+  '11 - 11:55 AM',
+  '12 - 12:55 PM',
+  '1 - 1:55 PM',
+  '2 - 2:55 PM',
+  '3 - 3:55 PM',
+  '5 - 5:55 PM',
+  '6 - 6:55 PM',
+  '7 - 7:55 PM',
+  '8 - 8:50 PM',
+];
 
-validateConfig(config);
+if (process.env.SKIP_BOOKER_MAIN !== 'true') {
+  await main();
+}
 
-const browserState = await openBrowser(config);
-const page = await pickPage(browserState, config);
+async function main() {
+  const config = {
+    bookingUrl: requiredEnv('BOOKING_URL'),
+    targetSlots: csvEnv('TARGET_SLOTS', optionalSingleEnv('TARGET_SLOT')),
+    targetDate: process.env.TARGET_DATE?.trim() || '',
+    targetDateText: process.env.TARGET_DATE_TEXT?.trim() || '',
+    targetFacilities: csvEnv('TARGET_FACILITIES', [
+      'Court 01-AC-Badminton',
+      'Court 02-AC-Badminton',
+      'Court 03-AC-Badminton',
+    ]),
+    startAt: process.env.START_AT?.trim() || '',
+    refreshMs: Number(process.env.REFRESH_MS || 650),
+    timeoutSeconds: Number(process.env.TIMEOUT_SECONDS || 180),
+    loopUntilSuccess: boolEnv('LOOP_UNTIL_SUCCESS', true),
+    selectSlotsMenu: boolEnv('SELECT_SLOTS_MENU', true),
+    bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
+    mode: process.env.BOOKER_MODE || 'persistent',
+    cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
+    userDataDir: process.env.USER_DATA_DIR || '.browser-profile',
+  };
 
-await page.goto(config.bookingUrl, { waitUntil: 'domcontentloaded' });
-await page.bringToFront();
+  validateConfig(config);
+  if (config.selectSlotsMenu) {
+    config.targetSlots = await chooseTargetSlots(config.targetSlots);
+  }
+  validateTargetSlots(config);
 
-console.log('\nBrowser is open.');
-console.log('1. Log in if needed.');
-console.log('2. The script will auto-select the configured date and courts after you continue.');
-console.log('3. Keep the browser visible for captcha/confirmation after a click.');
-console.log(`4. Target slots, in priority order: ${config.targetSlots.join(', ')}\n`);
+  const browserState = await openBrowser(config);
+  const page = await pickPage(browserState, config);
 
-await waitForEnter('Press Enter when the page is ready...');
+  await page.goto(config.bookingUrl, { waitUntil: 'domcontentloaded' });
+  await page.bringToFront();
 
-const workerPages = await createWorkerPages(browserState.context, page, config);
-await prepareWorkers(workerPages, config);
+  console.log('\nBrowser is open.');
+  console.log('1. Log in if needed.');
+  console.log('2. The script will auto-select the configured date and courts after you continue.');
+  console.log('3. Keep the browser visible for captcha/confirmation after a click.');
+  console.log(`4. Target slots, in priority order: ${config.targetSlots.join(', ')}\n`);
 
-await waitUntilStart(config.startAt);
-await raceWorkers(workerPages, config);
+  await waitForEnter('Press Enter when the page is ready...');
 
-console.log('\nDone. Browser left open so you can finish captcha/confirmation if shown.');
+  const workerPages = await createWorkerPages(browserState.context, page, config);
+  await prepareWorkers(workerPages, config);
+
+  await waitUntilStart(config.startAt);
+  await raceWorkers(workerPages, config);
+
+  console.log('\nDone. Browser left open so you can finish captcha/confirmation if shown.');
+}
 
 function validateConfig(value) {
   validateCommonConfig(value);
@@ -72,6 +100,12 @@ function validateConfig(value) {
   if (value.targetFacilities.length === 0) {
     throw new Error('TARGET_FACILITIES must contain at least one court name.');
   }
+  if (!value.selectSlotsMenu) {
+    validateTargetSlots(value);
+  }
+}
+
+function validateTargetSlots(value) {
   if (value.targetSlots.length === 0) {
     throw new Error('TARGET_SLOTS/TARGET_SLOT must contain at least one slot.');
   }
@@ -80,6 +114,106 @@ function validateConfig(value) {
 function optionalSingleEnv(name) {
   const value = process.env[name]?.trim();
   return value ? [value] : [];
+}
+
+async function chooseTargetSlots(defaultSlots) {
+  const defaultText = defaultSlots.length ? defaultSlots.join(', ') : 'none';
+
+  while (true) {
+    console.log('\nSelect target time slots, in priority order:');
+    BOOKING_SLOT_MENU.forEach((slot, index) => {
+      console.log(`  ${String(index + 1).padStart(2, ' ')}. ${slot}`);
+    });
+    console.log('\nExamples:');
+    console.log('  13,12,11   -> 8 PM, then 7 PM, then 6 PM');
+    console.log('  11-13      -> 6 PM, then 7 PM, then 8 PM');
+    console.log('  pm         -> all PM slots');
+    console.log('  all        -> all slots');
+
+    const answer = (await askQuestion(`Choose slots [default: ${defaultText}]: `)).trim();
+    if (!answer) {
+      if (defaultSlots.length > 0) {
+        console.log(`Using default slots: ${defaultSlots.join(', ')}`);
+        return defaultSlots;
+      }
+      console.log('Please choose at least one slot.');
+      continue;
+    }
+
+    try {
+      const selected = parseSlotMenuSelection(answer);
+      console.log(`Using selected slots: ${selected.join(', ')}`);
+      return selected;
+    } catch (error) {
+      console.log(`Invalid selection: ${error.message}`);
+    }
+  }
+}
+
+export function parseSlotMenuSelection(answer) {
+  const trimmed = answer.trim().toLowerCase();
+  if (trimmed === 'all') {
+    return BOOKING_SLOT_MENU;
+  }
+  if (trimmed === 'am') {
+    return BOOKING_SLOT_MENU.filter((slot) => slot.endsWith('AM'));
+  }
+  if (trimmed === 'pm') {
+    return BOOKING_SLOT_MENU.filter((slot) => slot.endsWith('PM'));
+  }
+
+  const selected = [];
+  const seen = new Set();
+  for (const rawPart of answer.split(',')) {
+    const part = rawPart.trim();
+    if (!part) {
+      continue;
+    }
+
+    const rangeMatch = /^(\d+)\s*-\s*(\d+)$/.exec(part);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      const step = start <= end ? 1 : -1;
+      for (let current = start; current !== end + step; current += step) {
+        addSlotByIndex(current, selected, seen);
+      }
+      continue;
+    }
+
+    if (/^\d+$/.test(part)) {
+      addSlotByIndex(Number(part), selected, seen);
+      continue;
+    }
+
+    const exact = BOOKING_SLOT_MENU.find((slot) => slot.toLowerCase() === part.toLowerCase());
+    if (exact) {
+      addSlot(exact, selected, seen);
+      continue;
+    }
+
+    throw new Error(`"${part}" is not a slot number, range, or exact slot text.`);
+  }
+
+  if (selected.length === 0) {
+    throw new Error('no slots selected');
+  }
+  return selected;
+}
+
+function addSlotByIndex(index, selected, seen) {
+  if (!Number.isInteger(index) || index < 1 || index > BOOKING_SLOT_MENU.length) {
+    throw new Error(`slot number ${index} is out of range`);
+  }
+  addSlot(BOOKING_SLOT_MENU[index - 1], selected, seen);
+}
+
+function addSlot(slot, selected, seen) {
+  if (seen.has(slot)) {
+    return;
+  }
+  seen.add(slot);
+  selected.push(slot);
 }
 
 async function createWorkerPages(context, firstPage, value) {

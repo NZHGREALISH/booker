@@ -60,9 +60,16 @@ export async function pickPage(browserState, value) {
 }
 
 export async function waitForEnter(prompt) {
+  await askQuestion(prompt);
+}
+
+export async function askQuestion(prompt) {
   const rl = readline.createInterface({ input, output });
-  await rl.question(prompt);
-  rl.close();
+  try {
+    return await rl.question(prompt);
+  } finally {
+    rl.close();
+  }
 }
 
 export async function selectDate(page, value) {
