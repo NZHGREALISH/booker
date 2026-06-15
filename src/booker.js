@@ -50,6 +50,7 @@ async function main() {
     refreshMs: Number(process.env.REFRESH_MS || 650),
     timeoutSeconds: Number(process.env.TIMEOUT_SECONDS || 180),
     loopUntilSuccess: boolEnv('LOOP_UNTIL_SUCCESS', true),
+    selectDateMenu: boolEnv('SELECT_DATE_MENU', true),
     selectSlotsMenu: boolEnv('SELECT_SLOTS_MENU', true),
     bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
     mode: process.env.BOOKER_MODE || 'persistent',
@@ -58,6 +59,11 @@ async function main() {
   };
 
   validateConfig(config);
+  if (config.selectDateMenu) {
+    const selectedDate = await chooseTargetDate(config);
+    config.targetDate = selectedDate.isoDate;
+    config.targetDateText = selectedDate.dateText;
+  }
   if (config.selectSlotsMenu) {
     config.targetSlots = await chooseTargetSlots(config.targetSlots);
   }
@@ -100,6 +106,9 @@ function validateConfig(value) {
   if (value.targetFacilities.length === 0) {
     throw new Error('TARGET_FACILITIES must contain at least one court name.');
   }
+  if (!value.selectDateMenu && !value.targetDate && !value.targetDateText) {
+    throw new Error('TARGET_DATE/TARGET_DATE_TEXT must be set when SELECT_DATE_MENU=false.');
+  }
   if (!value.selectSlotsMenu) {
     validateTargetSlots(value);
   }
@@ -114,6 +123,80 @@ function validateTargetSlots(value) {
 function optionalSingleEnv(name) {
   const value = process.env[name]?.trim();
   return value ? [value] : [];
+}
+
+async function chooseTargetDate(config) {
+  const choices = buildDateChoices();
+  const defaultText = config.targetDateText || config.targetDate || choices[0].dateText;
+
+  while (true) {
+    console.log('\nSelect target date:');
+    choices.forEach((choice, index) => {
+      console.log(`  ${index + 1}. ${choice.label} - ${choice.isoDate} (${choice.dateText})`);
+    });
+
+    const answer = (await askQuestion(`Choose date [default: ${defaultText}]: `)).trim();
+    if (!answer) {
+      if (config.targetDate || config.targetDateText) {
+        const fallback = {
+          isoDate: config.targetDate || choices[0].isoDate,
+          dateText: config.targetDateText || formatBookingDateText(parseLocalIsoDate(config.targetDate)),
+        };
+        console.log(`Using default date: ${fallback.isoDate} (${fallback.dateText})`);
+        return fallback;
+      }
+      console.log(`Using default date: ${choices[0].isoDate} (${choices[0].dateText})`);
+      return choices[0];
+    }
+
+    if (/^[1-3]$/.test(answer)) {
+      const selected = choices[Number(answer) - 1];
+      console.log(`Using selected date: ${selected.isoDate} (${selected.dateText})`);
+      return selected;
+    }
+
+    console.log('Invalid selection. Choose 1, 2, or 3.');
+  }
+}
+
+export function buildDateChoices(baseDate = new Date()) {
+  return [
+    { label: 'Today', offsetDays: 0 },
+    { label: 'Tomorrow', offsetDays: 1 },
+    { label: 'Day after tomorrow', offsetDays: 2 },
+  ].map((choice) => {
+    const date = new Date(baseDate);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + choice.offsetDays);
+    return {
+      ...choice,
+      isoDate: formatLocalIsoDate(date),
+      dateText: formatBookingDateText(date),
+    };
+  });
+}
+
+function parseLocalIsoDate(value) {
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value || '');
+  if (!match) {
+    return new Date();
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0, 0);
+}
+
+export function formatLocalIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function formatBookingDateText(date) {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 async function chooseTargetSlots(defaultSlots) {
