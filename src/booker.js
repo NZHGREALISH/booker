@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import {
+  boolEnv,
   clickTargetSlotIfAvailable,
   csvEnv,
   openBrowser,
@@ -9,12 +10,13 @@ import {
   selectFacility,
   validateCommonConfig,
   waitForEnter,
+  waitForBookingOutcome,
   waitForSlotsToSettle,
 } from './lib.js';
 
 const config = {
   bookingUrl: requiredEnv('BOOKING_URL'),
-  targetSlot: requiredEnv('TARGET_SLOT'),
+  targetSlots: csvEnv('TARGET_SLOTS', optionalSingleEnv('TARGET_SLOT')),
   targetDate: process.env.TARGET_DATE?.trim() || '',
   targetDateText: process.env.TARGET_DATE_TEXT?.trim() || '',
   targetFacilities: csvEnv('TARGET_FACILITIES', [
@@ -25,6 +27,8 @@ const config = {
   startAt: process.env.START_AT?.trim() || '',
   refreshMs: Number(process.env.REFRESH_MS || 650),
   timeoutSeconds: Number(process.env.TIMEOUT_SECONDS || 180),
+  loopUntilSuccess: boolEnv('LOOP_UNTIL_SUCCESS', true),
+  bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
   mode: process.env.BOOKER_MODE || 'persistent',
   cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
   userDataDir: process.env.USER_DATA_DIR || '.browser-profile',
@@ -41,7 +45,8 @@ await page.bringToFront();
 console.log('\nBrowser is open.');
 console.log('1. Log in if needed.');
 console.log('2. The script will auto-select the configured date and courts after you continue.');
-console.log('3. Keep the browser visible for captcha/confirmation after the click.\n');
+console.log('3. Keep the browser visible for captcha/confirmation after a click.');
+console.log(`4. Target slots, in priority order: ${config.targetSlots.join(', ')}\n`);
 
 await waitForEnter('Press Enter when the page is ready...');
 
@@ -59,11 +64,22 @@ function validateConfig(value) {
     throw new Error('REFRESH_MS must be a number >= 250.');
   }
   if (!Number.isFinite(value.timeoutSeconds) || value.timeoutSeconds < 1) {
-    throw new Error('TIMEOUT_SECONDS must be a positive number.');
+    throw new Error('TIMEOUT_SECONDS must be a positive number. Set LOOP_UNTIL_SUCCESS=true to ignore it.');
+  }
+  if (!Number.isFinite(value.bookingResultTimeoutMs) || value.bookingResultTimeoutMs < 1000) {
+    throw new Error('BOOKING_RESULT_TIMEOUT_MS must be a number >= 1000.');
   }
   if (value.targetFacilities.length === 0) {
     throw new Error('TARGET_FACILITIES must contain at least one court name.');
   }
+  if (value.targetSlots.length === 0) {
+    throw new Error('TARGET_SLOTS/TARGET_SLOT must contain at least one slot.');
+  }
+}
+
+function optionalSingleEnv(name) {
+  const value = process.env[name]?.trim();
+  return value ? [value] : [];
 }
 
 async function createWorkerPages(context, firstPage, value) {
@@ -118,7 +134,7 @@ function nextLocalTime(hhmmss) {
 }
 
 async function raceWorkers(workers, value) {
-  const state = { winner: null };
+  const state = { winner: null, activeAttempt: null };
   const stop = () => {
     for (const worker of workers) {
       worker.stopped = true;
@@ -128,9 +144,6 @@ async function raceWorkers(workers, value) {
   await Promise.all(workers.map(async (worker) => {
     const result = await pollAndClick(worker, value, state);
     if (result) {
-      if (!state.winner) {
-        state.winner = result;
-      }
       stop();
     }
   }));
@@ -146,15 +159,31 @@ async function pollAndClick(worker, value, state) {
   const deadline = Date.now() + value.timeoutSeconds * 1000;
   let attempt = 0;
 
-  while (!worker.stopped && Date.now() < deadline) {
+  while (!worker.stopped && !state.winner && (value.loopUntilSuccess || Date.now() < deadline)) {
     attempt += 1;
+    if (state.activeAttempt) {
+      await page.waitForTimeout(value.refreshMs);
+      continue;
+    }
+
     console.log(`[${new Date().toLocaleTimeString()}] ${facilityName} attempt ${attempt}: checking slot...`);
 
-    const clicked = await clickTargetSlotIfAvailable(page, value.targetSlot, facilityName, state);
+    const clicked = await clickTargetSlotIfAvailable(page, value.targetSlots, facilityName, state);
     if (clicked) {
-      console.log(`Clicked Book Now for "${value.targetSlot}" on ${facilityName}.`);
+      console.log(`Clicked Book Now for "${clicked.slotText}" on ${facilityName}; waiting for booking result...`);
       await page.bringToFront();
-      return { page, facilityName, targetSlot: value.targetSlot };
+      const outcome = await waitForBookingOutcome(page, value.bookingResultTimeoutMs);
+      console.log(`Booking result for ${facilityName} ${clicked.slotText}: ${outcome.status}`);
+
+      if (outcome.status === 'success') {
+        state.winner = { page, facilityName, targetSlot: clicked.slotText };
+        return state.winner;
+      }
+
+      state.activeAttempt = null;
+      await refreshSlots(worker, value);
+      await page.waitForTimeout(value.refreshMs);
+      continue;
     }
 
     await refreshSlots(worker, value);
@@ -162,7 +191,7 @@ async function pollAndClick(worker, value, state) {
   }
 
   if (!worker.stopped) {
-    console.log(`${facilityName} timed out after ${value.timeoutSeconds}s without finding "${value.targetSlot}".`);
+    console.log(`${facilityName} timed out after ${value.timeoutSeconds}s without a successful booking.`);
   }
   return null;
 }

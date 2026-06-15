@@ -18,9 +18,11 @@ Edit `.env`:
 ```txt
 BOOKING_URL=...
 TARGET_SLOT=8 - 8:50 PM
+TARGET_SLOTS=8 - 8:50 PM,7 - 7:55 PM,6 - 6:55 PM
 TARGET_DATE=2026-06-16
 TARGET_FACILITIES=Court 01-AC-Badminton,Court 02-AC-Badminton,Court 03-AC-Badminton
 START_AT=19:59:55
+LOOP_UNTIL_SUCCESS=true
 ```
 
 ## Recommended Flow
@@ -29,7 +31,7 @@ START_AT=19:59:55
 npm start
 ```
 
-The script opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, wait until `START_AT`, refresh until your slot appears, and click the first available one.
+The script opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, wait until `START_AT`, refresh until one of your `TARGET_SLOTS` appears, click the first available match by priority, and keep looping until the page reports booking success.
 
 ## Test One Click
 
@@ -37,7 +39,7 @@ The script opens a visible Chromium window. Log in once, then press Enter in the
 npm run test:click
 ```
 
-This opens one browser tab, selects `TEST_FACILITY` plus the configured date, clicks exactly one matching `Book Now` button, waits a few seconds, and prints whether success/failure/captcha UI appeared. If `TEST_SLOT` is blank, it uses `TARGET_SLOT`.
+This opens one browser tab, selects `TEST_FACILITY` plus the configured date, clicks exactly one matching `Book Now` button, waits a few seconds, and prints whether success/failure/captcha UI appeared. If `TEST_SLOTS` is blank, it uses `TARGET_SLOTS`, then `TARGET_SLOT`.
 
 ## Connect To Your Own Chrome
 
@@ -59,4 +61,4 @@ npm run start:cdp
 
 - Keep the browser visible near 8 PM so you can solve reCAPTCHA quickly.
 - `REFRESH_MS=500` to `1000` is a reasonable range.
-- If the site changes the slot text, inspect the button's `data-slot-text` and update `TARGET_SLOT`.
+- If the site changes the slot text, inspect the button's `data-slot-text` and update `TARGET_SLOTS`.

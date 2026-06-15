@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import {
   clickTargetSlotIfAvailable,
+  csvEnv,
   openBrowser,
   pickPage,
   requiredEnv,
@@ -12,7 +13,13 @@ import {
 
 const config = {
   bookingUrl: requiredEnv('BOOKING_URL'),
-  targetSlot: process.env.TEST_SLOT?.trim() || requiredEnv('TARGET_SLOT'),
+  targetSlots: csvEnv(
+    'TEST_SLOTS',
+    csvEnv('TARGET_SLOTS', [
+      process.env.TEST_SLOT?.trim(),
+      process.env.TARGET_SLOT?.trim(),
+    ].filter(Boolean)),
+  ),
   targetDate: process.env.TEST_DATE?.trim() || process.env.TARGET_DATE?.trim() || '',
   targetDateText: process.env.TEST_DATE_TEXT?.trim() || process.env.TARGET_DATE_TEXT?.trim() || '',
   testFacility: process.env.TEST_FACILITY?.trim() || 'Court 03-AC-Badminton',
@@ -22,6 +29,9 @@ const config = {
 };
 
 validateCommonConfig(config);
+if (config.targetSlots.length === 0) {
+  throw new Error('TEST_SLOTS/TARGET_SLOTS/TARGET_SLOT must contain at least one slot.');
+}
 
 const browserState = await openBrowser(config);
 const page = await pickPage(browserState, config);
@@ -33,16 +43,16 @@ console.log('\nTest click browser is open.');
 console.log('Log in if needed. This will click exactly one matching Book Now button.');
 console.log(`Target date: ${config.targetDate || config.targetDateText}`);
 console.log(`Target facility: ${config.testFacility}`);
-console.log(`Target slot: ${config.targetSlot}\n`);
+console.log(`Target slots: ${config.targetSlots.join(', ')}\n`);
 
 await waitForEnter('Press Enter to select date/facility and click the test slot...');
 
 await selectDate(page, config);
 await selectFacility(page, config.testFacility);
 
-const clicked = await clickTargetSlotIfAvailable(page, config.targetSlot, config.testFacility);
+const clicked = await clickTargetSlotIfAvailable(page, config.targetSlots, config.testFacility);
 if (!clicked) {
-  throw new Error(`No clickable Book Now button found for "${config.targetSlot}" on ${config.testFacility}.`);
+  throw new Error(`No clickable Book Now button found for "${config.targetSlots.join(', ')}" on ${config.testFacility}.`);
 }
 
 console.log('Clicked. Waiting 8 seconds to inspect resulting page state...');

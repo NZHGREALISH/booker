@@ -19,6 +19,14 @@ export function csvEnv(name, fallback) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+export function boolEnv(name, fallback = false) {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'y', 'on'].includes(value);
+}
+
 export function validateCommonConfig(value) {
   if (!['persistent', 'cdp'].includes(value.mode)) {
     throw new Error('BOOKER_MODE must be either persistent or cdp.');
@@ -114,45 +122,51 @@ export async function selectFacility(page, facilityName) {
   }
 }
 
-export async function clickTargetSlotIfAvailable(page, targetSlot, facilityName, state = { winner: null }) {
-  if (state.winner) {
+export async function clickTargetSlotIfAvailable(page, targetSlots, facilityName, state = {}) {
+  if (state.winner || state.activeAttempt) {
     return false;
   }
 
-  const matchedSlot = await findMatchingBookNowSlot(page, targetSlot);
+  const requestedSlots = Array.isArray(targetSlots) ? targetSlots : [targetSlots];
+  const matchedSlot = await findMatchingBookNowSlot(page, requestedSlots);
   if (matchedSlot) {
     const button = page.locator('button[data-slot-text]').nth(matchedSlot.index);
     if (await isClickable(button)) {
-      if (state.winner) {
+      if (state.winner || state.activeAttempt) {
         return false;
       }
-      console.log(`  ${facilityName} matched slot "${matchedSlot.slotText}" via ${matchedSlot.reason}`);
-      state.winner = { page, facilityName, targetSlot: matchedSlot.slotText };
+      console.log(`  ${facilityName} matched slot "${matchedSlot.slotText}" via ${matchedSlot.reason} for requested "${matchedSlot.requestedSlot}"`);
+      state.activeAttempt = { page, facilityName, targetSlot: matchedSlot.slotText };
+      await clearBookingAlerts(page);
       await button.click();
-      return true;
+      return matchedSlot;
     }
   }
 
-  const byDataSlot = page.locator(`button[data-slot-text="${cssString(targetSlot)}"]`).first();
-  if (await isClickable(byDataSlot)) {
-    if (state.winner) {
-      return false;
+  for (const targetSlot of requestedSlots) {
+    const byDataSlot = page.locator(`button[data-slot-text="${cssString(targetSlot)}"]`).first();
+    if (await isClickable(byDataSlot)) {
+      if (state.winner || state.activeAttempt) {
+        return false;
+      }
+      state.activeAttempt = { page, facilityName, targetSlot };
+      await clearBookingAlerts(page);
+      await byDataSlot.click();
+      return { slotText: targetSlot, requestedSlot: targetSlot, reason: 'exact selector match' };
     }
-    state.winner = { page, facilityName, targetSlot };
-    await byDataSlot.click();
-    return true;
-  }
 
-  const byAria = page.locator(`button[aria-label*="${cssString(targetSlot)}"]`, {
-    hasText: /Book Now/i,
-  }).first();
-  if (await isClickable(byAria)) {
-    if (state.winner) {
-      return false;
+    const byAria = page.locator(`button[aria-label*="${cssString(targetSlot)}"]`, {
+      hasText: /Book Now/i,
+    }).first();
+    if (await isClickable(byAria)) {
+      if (state.winner || state.activeAttempt) {
+        return false;
+      }
+      state.activeAttempt = { page, facilityName, targetSlot };
+      await clearBookingAlerts(page);
+      await byAria.click();
+      return { slotText: targetSlot, requestedSlot: targetSlot, reason: 'aria selector match' };
     }
-    state.winner = { page, facilityName, targetSlot };
-    await byAria.click();
-    return true;
   }
 
   const opensCount = await page.getByText(/Opens at/i).count().catch(() => 0);
@@ -162,6 +176,14 @@ export async function clickTargetSlotIfAvailable(page, targetSlot, facilityName,
     await logAvailableSlots(page, facilityName);
   }
   return false;
+}
+
+async function clearBookingAlerts(page) {
+  await page.evaluate(() => {
+    document.querySelectorAll('.booking-detail-alert').forEach((element) => {
+      element.style.display = 'none';
+    });
+  }).catch(() => {});
 }
 
 export async function waitForSlotsToSettle(page, timeout = 1500) {
@@ -174,27 +196,70 @@ export async function waitForSlotsToSettle(page, timeout = 1500) {
   }, undefined, { timeout }).catch(() => {});
 }
 
-async function findMatchingBookNowSlot(page, targetSlot) {
-  const target = normalizeSlotText(targetSlot);
+async function findMatchingBookNowSlot(page, targetSlots) {
   const candidates = await getSlotCandidates(page);
 
-  const exact = candidates.find((candidate) => (
-    candidate.isBookNow &&
-    candidate.enabled &&
-    candidate.visible &&
-    normalizeSlotText(candidate.slotText) === target
-  ));
-  if (exact) {
-    return { ...exact, reason: 'exact text match' };
+  for (const targetSlot of targetSlots) {
+    const target = normalizeSlotText(targetSlot);
+    const exact = candidates.find((candidate) => (
+      candidate.isBookNow &&
+      candidate.enabled &&
+      candidate.visible &&
+      normalizeSlotText(candidate.slotText) === target
+    ));
+    if (exact) {
+      return { ...exact, requestedSlot: targetSlot, reason: 'exact text match' };
+    }
   }
 
-  const loose = candidates.find((candidate) => (
-    candidate.isBookNow &&
-    candidate.enabled &&
-    candidate.visible &&
-    isLooseSlotMatch(candidate.slotText, targetSlot)
-  ));
-  return loose ? { ...loose, reason: 'loose text match' } : null;
+  for (const targetSlot of targetSlots) {
+    const loose = candidates.find((candidate) => (
+      candidate.isBookNow &&
+      candidate.enabled &&
+      candidate.visible &&
+      isLooseSlotMatch(candidate.slotText, targetSlot)
+    ));
+    if (loose) {
+      return { ...loose, requestedSlot: targetSlot, reason: 'loose text match' };
+    }
+  }
+
+  return null;
+}
+
+export async function waitForBookingOutcome(page, timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs;
+  let captchaLogged = false;
+
+  while (Date.now() < deadline) {
+    const outcome = await inspectBookingOutcome(page);
+    if (outcome.success) {
+      return { status: 'success', outcome };
+    }
+    if (outcome.noSpots) {
+      return { status: 'no-spots', outcome };
+    }
+    if (outcome.failure) {
+      return { status: 'failure', outcome };
+    }
+    if ((outcome.captcha || outcome.confirmButton) && !captchaLogged) {
+      console.log('  Booking confirmation/captcha is visible. Waiting for manual completion...');
+      captchaLogged = true;
+    }
+    await page.waitForTimeout(500);
+  }
+
+  return { status: 'timeout', outcome: await inspectBookingOutcome(page) };
+}
+
+export async function inspectBookingOutcome(page) {
+  return {
+    success: await page.locator('#alertBookingSuccess').isVisible().catch(() => false),
+    failure: await page.locator('#alertBookingFailure').isVisible().catch(() => false),
+    noSpots: await page.locator('#alertBookingFailure-NoSpots').isVisible().catch(() => false),
+    captcha: await page.locator('#modalReCaptchaConfirm.show, #modalReCaptchaConfirm[style*="display: block"]').isVisible().catch(() => false),
+    confirmButton: await page.locator('#btnReCaptchaConfirm').isVisible().catch(() => false),
+  };
 }
 
 async function logAvailableSlots(page, facilityName) {
