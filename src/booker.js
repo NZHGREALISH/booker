@@ -53,7 +53,7 @@ async function main() {
     selectDateMenu: boolEnv('SELECT_DATE_MENU', true),
     selectSlotsMenu: boolEnv('SELECT_SLOTS_MENU', true),
     selectPollingMenu: boolEnv('SELECT_POLLING_MENU', true),
-    bookingOpensAt: process.env.BOOKING_OPENS_AT?.trim() || '20:00:00',
+    bookingOpensHours: Number(process.env.BOOKING_OPENS_HOURS || 48),
     pollingLeadSeconds: Number(process.env.POLLING_LEAD_SECONDS || 5),
     bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
     mode: process.env.BOOKER_MODE || 'persistent',
@@ -112,6 +112,9 @@ function validateConfig(value) {
   if (!Number.isFinite(value.pollingLeadSeconds) || value.pollingLeadSeconds < 0) {
     throw new Error('POLLING_LEAD_SECONDS must be a number >= 0.');
   }
+  if (!Number.isFinite(value.bookingOpensHours) || value.bookingOpensHours <= 0) {
+    throw new Error('BOOKING_OPENS_HOURS must be a number > 0.');
+  }
   if (value.targetFacilities.length === 0) {
     throw new Error('TARGET_FACILITIES must contain at least one court name.');
   }
@@ -135,13 +138,19 @@ function optionalSingleEnv(name) {
 }
 
 async function choosePollingStart(config) {
-  const startBeforeOpen = secondsBeforeTime(config.bookingOpensAt, config.pollingLeadSeconds);
-  const startBeforeOpenLabel = formatTimeForDisplay(startBeforeOpen);
+  const firstPrioritySlot = config.targetSlots[0];
+  const startBeforeOpen = bookingOpenPollingStart(
+    config.targetDate,
+    firstPrioritySlot,
+    config.bookingOpensHours,
+    config.pollingLeadSeconds,
+  );
+  const startBeforeOpenLabel = formatDateTimeForDisplay(startBeforeOpen);
 
   while (true) {
     console.log('\nSelect polling start:');
     console.log('  1. Start now');
-    console.log(`  2. Start ${config.pollingLeadSeconds}s before booking opens (${startBeforeOpenLabel})`);
+    console.log(`  2. Start ${config.pollingLeadSeconds}s before "${firstPrioritySlot}" opens (${startBeforeOpenLabel})`);
 
     const answer = (await askQuestion('Choose polling start [default: 1]: ')).trim();
     if (!answer || answer === '1') {
@@ -156,27 +165,42 @@ async function choosePollingStart(config) {
   }
 }
 
-export function secondsBeforeTime(timeText, leadSeconds) {
-  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(timeText);
-  if (!match) {
-    throw new Error('BOOKING_OPENS_AT must use HH:mm or HH:mm:ss.');
-  }
-
-  const date = new Date();
-  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || 0), 0);
-  date.setSeconds(date.getSeconds() - leadSeconds);
-  return [
-    String(date.getHours()).padStart(2, '0'),
-    String(date.getMinutes()).padStart(2, '0'),
-    String(date.getSeconds()).padStart(2, '0'),
-  ].join(':');
+export function bookingOpenPollingStart(targetDateIso, slotText, opensHours, leadSeconds) {
+  const bookingTime = parseBookingSlotStartDate(targetDateIso, slotText);
+  const start = new Date(bookingTime);
+  start.setHours(start.getHours() - opensHours);
+  start.setSeconds(start.getSeconds() - leadSeconds);
+  return start;
 }
 
-function formatTimeForDisplay(hhmmss) {
-  const [hh, mm, ss] = hhmmss.split(':').map(Number);
-  const date = new Date();
-  date.setHours(hh, mm, ss, 0);
-  return date.toLocaleTimeString([], {
+export function parseBookingSlotStartDate(targetDateIso, slotText) {
+  const date = parseLocalIsoDate(targetDateIso);
+  const time = parseSlotStartTime(slotText);
+  date.setHours(time.hour24, 0, 0, 0);
+  return date;
+}
+
+function parseSlotStartTime(slotText) {
+  const match = /^(\d{1,2})\s*-\s*.+?\s*(AM|PM)$/i.exec(slotText.trim());
+  if (!match) {
+    throw new Error(`Could not parse slot start time from "${slotText}".`);
+  }
+
+  let hour = Number(match[1]);
+  const period = match[2].toUpperCase();
+  if (period === 'AM') {
+    hour = hour === 12 ? 0 : hour;
+  } else {
+    hour = hour === 12 ? 12 : hour + 12;
+  }
+  return { hour24: hour };
+}
+
+function formatDateTimeForDisplay(date) {
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     second: '2-digit',
@@ -382,10 +406,10 @@ async function waitUntilStart(startAt) {
     return;
   }
 
-  const target = nextLocalTime(startAt);
+  const target = startAt instanceof Date ? startAt : nextLocalTime(startAt);
   const waitMs = target.getTime() - Date.now();
   if (waitMs <= 0) {
-    console.log(`START_AT ${startAt} has already passed; polling now.`);
+    console.log(`Polling start ${target.toLocaleString()} has already passed; polling now.`);
     return;
   }
 

@@ -24,7 +24,7 @@ TARGET_DATE=2026-06-16
 SELECT_DATE_MENU=true
 TARGET_FACILITIES=Court 01-AC-Badminton,Court 02-AC-Badminton,Court 03-AC-Badminton
 SELECT_POLLING_MENU=true
-BOOKING_OPENS_AT=20:00:00
+BOOKING_OPENS_HOURS=48
 POLLING_LEAD_SECONDS=5
 LOOP_UNTIL_SUCCESS=true
 ```
@@ -35,7 +35,7 @@ LOOP_UNTIL_SUCCESS=true
 npm start
 ```
 
-The script first shows a date menu with concrete dates, then a numbered time-slot menu, then a polling-start menu. Press Enter to use `.env` defaults, or choose a date with `1`, `2`, `3`, slots with a priority list such as `13,12,11`, `11-13`, `pm`, or `all`, and polling start as either now or 5 seconds before booking opens. It then opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, refresh until one of your selected slots appears, click the first available match by priority, and keep looping until the page reports booking success.
+The script first shows a date menu with concrete dates, then a numbered time-slot menu, then a polling-start menu. Press Enter to use `.env` defaults, or choose a date with `1`, `2`, `3`, slots with a priority list such as `13,12,11`, `11-13`, `pm`, or `all`, and polling start as either now or 5 seconds before the selected date/time opens. Opening time is calculated as selected date + first-priority slot start time - `BOOKING_OPENS_HOURS`. It then opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, refresh until one of your selected slots appears, click the first available match by priority, and keep looping until the page reports booking success.
 
 ## Use A Persistent Chrome Login
 

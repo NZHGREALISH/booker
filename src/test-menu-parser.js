@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {
   buildDateChoices,
+  bookingOpenPollingStart,
   formatBookingDateText,
   formatLocalIsoDate,
   parseSlotMenuSelection,
-  secondsBeforeTime,
+  parseBookingSlotStartDate,
 } from './booker.js';
 
 assert.deepEqual(parseSlotMenuSelection('13,12,11'), [
@@ -45,7 +46,8 @@ assert.deepEqual(buildDateChoices(fixedDate).map((choice) => `${choice.label}:${
   'Day after tomorrow:2026-06-16:Jun 16, 2026',
 ]);
 
-assert.equal(secondsBeforeTime('20:00:00', 5), '19:59:55');
-assert.equal(secondsBeforeTime('08:00', 10), '07:59:50');
+assert.equal(parseBookingSlotStartDate('2026-06-17', '1 - 1:55 PM').toISOString(), new Date(2026, 5, 17, 13, 0, 0, 0).toISOString());
+assert.equal(bookingOpenPollingStart('2026-06-17', '1 - 1:55 PM', 48, 5).toISOString(), new Date(2026, 5, 15, 12, 59, 55, 0).toISOString());
+assert.equal(bookingOpenPollingStart('2026-06-16', '8 - 8:50 PM', 48, 5).toISOString(), new Date(2026, 5, 14, 19, 59, 55, 0).toISOString());
 
 console.log('Menu parser tests passed.');
