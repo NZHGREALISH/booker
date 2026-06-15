@@ -6,7 +6,8 @@
   "scripts": {
     "install:browsers": "playwright install chromium",
     "start": "node src/booker.js",
-    "start:cdp": "BOOKER_MODE=cdp node src/booker.js"
+    "start:cdp": "BOOKER_MODE=cdp node src/booker.js",
+    "test:click": "node src/test-click.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

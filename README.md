@@ -31,6 +31,14 @@ npm start
 
 The script opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, wait until `START_AT`, refresh until your slot appears, and click the first available one.
 
+## Test One Click
+
+```bash
+npm run test:click
+```
+
+This opens one browser tab, selects `TEST_FACILITY` plus the configured date, clicks exactly one matching `Book Now` button, waits a few seconds, and prints whether success/failure/captcha UI appeared. If `TEST_SLOT` is blank, it uses `TARGET_SLOT`.
+
 ## Connect To Your Own Chrome
 
 Start Chrome with remote debugging:
