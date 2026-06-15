@@ -9,6 +9,7 @@ import {
   selectFacility,
   validateCommonConfig,
   waitForEnter,
+  waitForSlotsToSettle,
 } from './lib.js';
 
 const config = {
@@ -177,7 +178,7 @@ async function refreshSlots(worker, value) {
   }).catch(() => false);
 
   if (usedPageFunction) {
-    await page.waitForTimeout(150);
+    await waitForSlotsToSettle(page, 1500);
     return;
   }
 
@@ -185,4 +186,5 @@ async function refreshSlots(worker, value) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await selectDate(page, value);
   await selectFacility(page, facilityName);
+  await waitForSlotsToSettle(page, 1500);
 }

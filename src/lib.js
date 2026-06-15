@@ -119,6 +119,20 @@ export async function clickTargetSlotIfAvailable(page, targetSlot, facilityName,
     return false;
   }
 
+  const matchedSlot = await findMatchingBookNowSlot(page, targetSlot);
+  if (matchedSlot) {
+    const button = page.locator('button[data-slot-text]').nth(matchedSlot.index);
+    if (await isClickable(button)) {
+      if (state.winner) {
+        return false;
+      }
+      console.log(`  ${facilityName} matched slot "${matchedSlot.slotText}" via ${matchedSlot.reason}`);
+      state.winner = { page, facilityName, targetSlot: matchedSlot.slotText };
+      await button.click();
+      return true;
+    }
+  }
+
   const byDataSlot = page.locator(`button[data-slot-text="${cssString(targetSlot)}"]`).first();
   if (await isClickable(byDataSlot)) {
     if (state.winner) {
@@ -144,7 +158,66 @@ export async function clickTargetSlotIfAvailable(page, targetSlot, facilityName,
   const opensCount = await page.getByText(/Opens at/i).count().catch(() => 0);
   const bookNowCount = await page.getByRole('button', { name: /Book Now/i }).count().catch(() => 0);
   console.log(`  ${facilityName} not ready yet; opens=${opensCount}, bookNowButtons=${bookNowCount}`);
+  if (bookNowCount > 0) {
+    await logAvailableSlots(page, facilityName);
+  }
   return false;
+}
+
+export async function waitForSlotsToSettle(page, timeout = 1500) {
+  await page.waitForFunction(() => {
+    const container = document.querySelector('#divBookingSlots');
+    if (!container) {
+      return false;
+    }
+    return container.querySelectorAll('button').length > 0 || container.textContent.trim().length > 0;
+  }, undefined, { timeout }).catch(() => {});
+}
+
+async function findMatchingBookNowSlot(page, targetSlot) {
+  const target = normalizeSlotText(targetSlot);
+  const candidates = await getSlotCandidates(page);
+
+  const exact = candidates.find((candidate) => (
+    candidate.isBookNow &&
+    candidate.enabled &&
+    candidate.visible &&
+    normalizeSlotText(candidate.slotText) === target
+  ));
+  if (exact) {
+    return { ...exact, reason: 'exact text match' };
+  }
+
+  const loose = candidates.find((candidate) => (
+    candidate.isBookNow &&
+    candidate.enabled &&
+    candidate.visible &&
+    isLooseSlotMatch(candidate.slotText, targetSlot)
+  ));
+  return loose ? { ...loose, reason: 'loose text match' } : null;
+}
+
+async function logAvailableSlots(page, facilityName) {
+  const candidates = await getSlotCandidates(page);
+  const printable = candidates
+    .filter((candidate) => candidate.slotText)
+    .map((candidate) => `${candidate.slotText} => ${candidate.text}${candidate.enabled ? '' : ' (disabled)'}`)
+    .join(' | ');
+
+  if (printable) {
+    console.log(`  ${facilityName} slots: ${printable}`);
+  }
+}
+
+async function getSlotCandidates(page) {
+  return page.locator('button[data-slot-text]').evaluateAll((buttons) => buttons.map((button, index) => ({
+    index,
+    slotText: button.getAttribute('data-slot-text') || '',
+    text: button.textContent.trim().replace(/\s+/g, ' '),
+    enabled: !button.disabled && !button.classList.contains('disabled'),
+    visible: !!(button.offsetWidth || button.offsetHeight || button.getClientRects().length),
+    isBookNow: /book now/i.test(button.textContent),
+  }))).catch(() => []);
 }
 
 export async function isClickable(locator) {
@@ -162,4 +235,29 @@ export async function isClickable(locator) {
 
 export function cssString(value) {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function normalizeSlotText(value) {
+  return value
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, '')
+    .replace(/[–—]/g, '-');
+}
+
+function isLooseSlotMatch(actual, target) {
+  const normalizedActual = normalizeSlotText(actual);
+  const normalizedTarget = normalizeSlotText(target);
+
+  if (normalizedActual === normalizedTarget) {
+    return true;
+  }
+
+  if (/(am|pm)$/i.test(normalizedActual)) {
+    return false;
+  }
+
+  const actualWithoutSuffix = normalizedActual.replace(/(am|pm)$/i, '');
+  const targetWithoutSuffix = normalizedTarget.replace(/(am|pm)$/i, '');
+  return actualWithoutSuffix === targetWithoutSuffix && /pm$/i.test(normalizedTarget);
 }

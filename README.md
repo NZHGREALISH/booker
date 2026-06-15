@@ -17,7 +17,7 @@ Edit `.env`:
 
 ```txt
 BOOKING_URL=...
-TARGET_SLOT=8 - 8:55 PM
+TARGET_SLOT=8 - 8:50 PM
 TARGET_DATE=2026-06-16
 TARGET_FACILITIES=Court 01-AC-Badminton,Court 02-AC-Badminton,Court 03-AC-Badminton
 START_AT=19:59:55
