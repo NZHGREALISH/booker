@@ -44,6 +44,14 @@ npm run start:default-chrome
 
 It starts your normal Google Chrome profile with remote debugging, then connects the booking script to it, so your existing UofT login cookies should be available. If regular Chrome is already open and cannot accept the debug flag, the script will ask whether to quit Chrome and restart it in debug mode.
 
+To verify Chrome is really in debug mode, open:
+
+```txt
+http://127.0.0.1:9222/json/version
+```
+
+If you see JSON with browser details, the debug port is active. The Chrome window itself may look completely normal.
+
 ## Test One Click
 
 ```bash

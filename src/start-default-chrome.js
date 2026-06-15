@@ -15,6 +15,19 @@ async function main() {
     return;
   }
 
+  if (await isRegularChromeRunning()) {
+    console.log('Google Chrome is already running, but the debug port is not open.');
+    console.log('macOS will reuse that existing non-debug Chrome process unless it is quit first.');
+    const answer = (await askQuestion('Quit Chrome and restart it in debug mode now? [Y/n] ')).trim().toLowerCase();
+    if (answer && !['y', 'yes'].includes(answer)) {
+      console.log('Cancelled. Quit Chrome manually, then run npm run start:default-chrome again.');
+      process.exitCode = 1;
+      return;
+    }
+    await quitChrome();
+    await delay(1500);
+  }
+
   console.log('Starting your default Google Chrome profile in debug mode...');
   let chromeProcess = startChromeDebug();
 
@@ -51,6 +64,7 @@ function startChromeDebug() {
     `--remote-debugging-port=${debugPort}`,
     '--no-first-run',
     '--no-default-browser-check',
+    '--restore-last-session',
   ], {
     detached: true,
     stdio: 'ignore',
@@ -75,6 +89,16 @@ async function isCdpReady() {
   } catch {
     return false;
   }
+}
+
+async function isRegularChromeRunning() {
+  return new Promise((resolve) => {
+    const child = spawn('pgrep', ['-x', 'Google Chrome'], {
+      stdio: 'ignore',
+    });
+    child.on('exit', (code) => resolve(code === 0));
+    child.on('error', () => resolve(false));
+  });
 }
 
 async function quitChrome() {
