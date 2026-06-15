@@ -4,6 +4,7 @@ import {
   formatBookingDateText,
   formatLocalIsoDate,
   parseSlotMenuSelection,
+  secondsBeforeTime,
 } from './booker.js';
 
 assert.deepEqual(parseSlotMenuSelection('13,12,11'), [
@@ -43,5 +44,8 @@ assert.deepEqual(buildDateChoices(fixedDate).map((choice) => `${choice.label}:${
   'Tomorrow:2026-06-15:Jun 15, 2026',
   'Day after tomorrow:2026-06-16:Jun 16, 2026',
 ]);
+
+assert.equal(secondsBeforeTime('20:00:00', 5), '19:59:55');
+assert.equal(secondsBeforeTime('08:00', 10), '07:59:50');
 
 console.log('Menu parser tests passed.');

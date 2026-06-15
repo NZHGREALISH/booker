@@ -52,6 +52,9 @@ async function main() {
     loopUntilSuccess: boolEnv('LOOP_UNTIL_SUCCESS', true),
     selectDateMenu: boolEnv('SELECT_DATE_MENU', true),
     selectSlotsMenu: boolEnv('SELECT_SLOTS_MENU', true),
+    selectPollingMenu: boolEnv('SELECT_POLLING_MENU', true),
+    bookingOpensAt: process.env.BOOKING_OPENS_AT?.trim() || '20:00:00',
+    pollingLeadSeconds: Number(process.env.POLLING_LEAD_SECONDS || 5),
     bookingResultTimeoutMs: Number(process.env.BOOKING_RESULT_TIMEOUT_MS || 120000),
     mode: process.env.BOOKER_MODE || 'persistent',
     cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
@@ -66,6 +69,9 @@ async function main() {
   }
   if (config.selectSlotsMenu) {
     config.targetSlots = await chooseTargetSlots(config.targetSlots);
+  }
+  if (config.selectPollingMenu) {
+    config.startAt = await choosePollingStart(config);
   }
   validateTargetSlots(config);
 
@@ -103,6 +109,9 @@ function validateConfig(value) {
   if (!Number.isFinite(value.bookingResultTimeoutMs) || value.bookingResultTimeoutMs < 1000) {
     throw new Error('BOOKING_RESULT_TIMEOUT_MS must be a number >= 1000.');
   }
+  if (!Number.isFinite(value.pollingLeadSeconds) || value.pollingLeadSeconds < 0) {
+    throw new Error('POLLING_LEAD_SECONDS must be a number >= 0.');
+  }
   if (value.targetFacilities.length === 0) {
     throw new Error('TARGET_FACILITIES must contain at least one court name.');
   }
@@ -123,6 +132,55 @@ function validateTargetSlots(value) {
 function optionalSingleEnv(name) {
   const value = process.env[name]?.trim();
   return value ? [value] : [];
+}
+
+async function choosePollingStart(config) {
+  const startBeforeOpen = secondsBeforeTime(config.bookingOpensAt, config.pollingLeadSeconds);
+  const startBeforeOpenLabel = formatTimeForDisplay(startBeforeOpen);
+
+  while (true) {
+    console.log('\nSelect polling start:');
+    console.log('  1. Start now');
+    console.log(`  2. Start ${config.pollingLeadSeconds}s before booking opens (${startBeforeOpenLabel})`);
+
+    const answer = (await askQuestion('Choose polling start [default: 1]: ')).trim();
+    if (!answer || answer === '1') {
+      console.log('Polling will start immediately.');
+      return '';
+    }
+    if (answer === '2') {
+      console.log(`Polling will start at ${startBeforeOpenLabel}.`);
+      return startBeforeOpen;
+    }
+    console.log('Invalid selection. Choose 1 or 2.');
+  }
+}
+
+export function secondsBeforeTime(timeText, leadSeconds) {
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(timeText);
+  if (!match) {
+    throw new Error('BOOKING_OPENS_AT must use HH:mm or HH:mm:ss.');
+  }
+
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), Number(match[3] || 0), 0);
+  date.setSeconds(date.getSeconds() - leadSeconds);
+  return [
+    String(date.getHours()).padStart(2, '0'),
+    String(date.getMinutes()).padStart(2, '0'),
+    String(date.getSeconds()).padStart(2, '0'),
+  ].join(':');
+}
+
+function formatTimeForDisplay(hhmmss) {
+  const [hh, mm, ss] = hhmmss.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hh, mm, ss, 0);
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 async function chooseTargetDate(config) {
