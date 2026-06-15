@@ -45,6 +45,12 @@ Run one command:
 npm run start:default-chrome
 ```
 
+From this folder, you can also run:
+
+```bash
+./run
+```
+
 It starts a dedicated Chrome profile at `.chrome-debug-profile` with remote debugging, then connects the booking script to it. Chrome no longer allows remote debugging against your normal default profile, so the first run may require login once. After that, this dedicated profile keeps your UofT login cookies for future runs.
 
 If regular Chrome is already open and blocks debug startup, the script will ask whether to quit Chrome and start the booking profile.
