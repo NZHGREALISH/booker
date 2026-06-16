@@ -1,127 +1,22 @@
 import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
-import { askQuestion } from './lib.js';
 
-const cdpUrl = process.env.CDP_URL || 'http://127.0.0.1:9222';
 const chromePath = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const chromeUserDataDir = path.resolve(process.env.CHROME_USER_DATA_DIR || '.chrome-debug-profile');
-const debugPort = new URL(cdpUrl).port || '9222';
 
-await main();
-
-async function main() {
-  if (await isCdpReady()) {
-    console.log(`Using existing Chrome debug session at ${cdpUrl}.`);
-    await runBooker();
-    return;
-  }
-
-  if (await isRegularChromeRunning()) {
-    console.log('Google Chrome is already running, but the debug port is not open.');
-    console.log('Chrome may reuse that existing non-debug process unless it is quit first.');
-    const answer = (await askQuestion('Quit regular Chrome and start the booking Chrome profile? [Y/n] ')).trim().toLowerCase();
-    if (answer && !['y', 'yes'].includes(answer)) {
-      console.log('Cancelled. Quit Chrome manually, then run npm run start:default-chrome again.');
-      process.exitCode = 1;
-      return;
-    }
-    await quitChrome();
-    await delay(1500);
-  }
-
-  console.log(`Starting booking Chrome profile in debug mode: ${chromeUserDataDir}`);
-  let chromeProcess = startChromeDebug();
-
-  if (!await waitForCdp(6000)) {
-    console.log('\nChrome debug port did not open.');
-    console.log('This usually means Chrome reused an existing non-debug session.');
-    const answer = (await askQuestion('Quit Chrome and restart the booking Chrome profile? [Y/n] ')).trim().toLowerCase();
-    if (answer && !['y', 'yes'].includes(answer)) {
-      console.log('Cancelled. Quit Chrome manually, then run npm run start:default-chrome again.');
-      process.exitCode = 1;
-      return;
-    }
-
-    await quitChrome();
-    await delay(1500);
-    chromeProcess = startChromeDebug();
-
-    if (!await waitForCdp(10000)) {
-      console.error(`Could not connect to Chrome debug endpoint at ${cdpUrl}.`);
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  console.log(`Chrome debug session ready at ${cdpUrl}.`);
-  await runBooker();
-
-  // Keep the Chrome process alive. If it was reused, this may already be detached.
-  chromeProcess?.unref?.();
-}
-
-function startChromeDebug() {
-  return spawn(chromePath, [
-    `--remote-debugging-port=${debugPort}`,
-    `--user-data-dir=${chromeUserDataDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--restore-last-session',
-  ], {
-    detached: true,
-    stdio: 'ignore',
-  });
-}
-
-async function waitForCdp(timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await isCdpReady()) {
-      return true;
-    }
-    await delay(250);
-  }
-  return false;
-}
-
-async function isCdpReady() {
-  try {
-    const response = await fetch(`${cdpUrl}/json/version`);
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function isRegularChromeRunning() {
-  return new Promise((resolve) => {
-    const child = spawn('pgrep', ['-x', 'Google Chrome'], {
-      stdio: 'ignore',
-    });
-    child.on('exit', (code) => resolve(code === 0));
-    child.on('error', () => resolve(false));
-  });
-}
-
-async function quitChrome() {
-  await new Promise((resolve) => {
-    const child = spawn('osascript', ['-e', 'tell application "Google Chrome" to quit'], {
-      stdio: 'ignore',
-    });
-    child.on('exit', resolve);
-    child.on('error', resolve);
-  });
-}
+await runBooker();
 
 async function runBooker() {
+  console.log(`Starting Google Chrome with persistent booking profile: ${chromeUserDataDir}`);
+
   await new Promise((resolve) => {
     const child = spawn(process.execPath, ['src/booker.js'], {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        BOOKER_MODE: 'cdp',
-        CDP_URL: cdpUrl,
+        BOOKER_MODE: 'persistent',
+        USER_DATA_DIR: chromeUserDataDir,
+        CHROME_EXECUTABLE_PATH: chromePath,
       },
       stdio: 'inherit',
     });

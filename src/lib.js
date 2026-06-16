@@ -43,9 +43,15 @@ export async function openBrowser(value) {
   }
 
   const userDataDir = path.resolve(value.userDataDir);
-  const context = await chromium.launchPersistentContext(userDataDir, {
+  const launchOptions = {
     headless: false,
     viewport: { width: 1280, height: 900 },
+  };
+  if (value.chromeExecutablePath) {
+    launchOptions.executablePath = value.chromeExecutablePath;
+  }
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    ...launchOptions,
   });
   return { context, close: async () => context.close() };
 }
