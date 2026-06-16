@@ -55,7 +55,6 @@ async function main() {
     mode: process.env.BOOKER_MODE || 'persistent',
     cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
     userDataDir: process.env.USER_DATA_DIR || '.browser-profile',
-    chromeExecutablePath: process.env.CHROME_EXECUTABLE_PATH?.trim() || '',
   };
 
   validateConfig(config);

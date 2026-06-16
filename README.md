@@ -52,7 +52,7 @@ Equivalent npm command:
 npm run start:default-chrome
 ```
 
-This starts Google Chrome with a dedicated persistent profile at `.chrome-debug-profile`. The first run may require login once. Future runs reuse the same profile and cookies.
+This starts Playwright's bundled browser with a persistent profile at `.browser-profile`. The first run may require login once. Future runs reuse the same profile and cookies.
 
 ## Startup Menus
 
@@ -89,12 +89,12 @@ selected date + first-priority slot start time - BOOKING_OPENS_HOURS - POLLING_L
 
 For example, if the selected date is `Jun 17`, the first-priority slot is `1 - 1:55 PM`, `BOOKING_OPENS_HOURS=48`, and `POLLING_LEAD_SECONDS=5`, polling starts at `Jun 15 12:59:55 PM`.
 
-## Chrome Profile
+## Browser Profile
 
 This project uses a dedicated browser profile so the booking session can persist independently from your everyday browser:
 
 ```txt
-.chrome-debug-profile
+.browser-profile
 ```
 
 ## Useful Commands
