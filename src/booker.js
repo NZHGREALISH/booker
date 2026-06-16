@@ -41,11 +41,7 @@ async function main() {
     targetSlots: csvEnv('TARGET_SLOTS', optionalSingleEnv('TARGET_SLOT')),
     targetDate: process.env.TARGET_DATE?.trim() || '',
     targetDateText: process.env.TARGET_DATE_TEXT?.trim() || '',
-    targetFacilities: csvEnv('TARGET_FACILITIES', [
-      'Court 01-AC-Badminton',
-      'Court 02-AC-Badminton',
-      'Court 03-AC-Badminton',
-    ]),
+    targetFacilities: csvEnv('TARGET_FACILITIES', []),
     startAt: process.env.START_AT?.trim() || '',
     refreshMs: Number(process.env.REFRESH_MS || 650),
     timeoutSeconds: Number(process.env.TIMEOUT_SECONDS || 180),

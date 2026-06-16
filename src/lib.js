@@ -53,7 +53,14 @@ export async function openBrowser(value) {
 export async function pickPage(browserState, value) {
   const pages = browserState.context.pages();
   if (value.mode === 'cdp' && pages.length > 0) {
-    const matching = pages.find((p) => p.url().includes('recreation.utoronto.ca'));
+    const bookingHost = new URL(value.bookingUrl).hostname;
+    const matching = pages.find((p) => {
+      try {
+        return new URL(p.url()).hostname === bookingHost;
+      } catch {
+        return false;
+      }
+    });
     return matching || pages[0];
   }
   return pages[0] || await browserState.context.newPage();

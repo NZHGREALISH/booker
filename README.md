@@ -1,94 +1,123 @@
-# UofT Badminton Booker
+# Booker
 
-Small Playwright helper for UofT recreation booking pages.
+A Playwright-based booking helper for web booking pages that expose date buttons, facility tabs, and `Book Now` slot buttons.
 
-It does not bypass reCAPTCHA. It opens or connects to a real browser, waits until the configured time, opens one worker tab per court, selects the configured date/court in each tab, refreshes the booking page, clicks the matching `Book Now` button when it appears, then stops the other workers and leaves the browser open for you to finish any captcha/confirmation step.
+The script does not bypass reCAPTCHA or other confirmation steps. It automates the repetitive parts: selecting a date, selecting one or more facilities, polling for preferred time slots, clicking the first matching `Book Now` button, and continuing until the page reports a successful booking.
+
+## Features
+
+- Interactive date menu: today, tomorrow, or day after tomorrow, with concrete dates shown.
+- Interactive time-slot menu with priority ordering.
+- Multiple facility workers: one browser tab per configured facility.
+- Polling start menu: start now, or start shortly before the selected booking slot opens.
+- 48-hour opening-window calculation by default.
+- Persistent Chrome profile for login reuse.
+- Continues after no-spots or failure responses until a success alert appears.
 
 ## Setup
 
 ```bash
-cd /Users/grealish/Downloads/uoft-badminton-booker
 npm install
 npm run install:browsers
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` for the booking page and facilities:
 
 ```txt
-BOOKING_URL=...
-TARGET_SLOT=8 - 8:50 PM
+BOOKING_URL=<booking page URL>
+TARGET_FACILITIES=Facility 1,Facility 2,Facility 3
 TARGET_SLOTS=8 - 8:50 PM,7 - 7:55 PM,6 - 6:55 PM
-SELECT_SLOTS_MENU=true
-TARGET_DATE=2026-06-16
 SELECT_DATE_MENU=true
-TARGET_FACILITIES=Court 01-AC-Badminton,Court 02-AC-Badminton,Court 03-AC-Badminton
+SELECT_SLOTS_MENU=true
 SELECT_POLLING_MENU=true
 BOOKING_OPENS_HOURS=48
 POLLING_LEAD_SECONDS=5
 LOOP_UNTIL_SUCCESS=true
 ```
 
-## Recommended Flow
+`BOOKING_URL` is the real booking detail page URL. `TARGET_FACILITIES` must match the visible facility tab names on the page.
 
-```bash
-npm start
-```
+## Run
 
-The script first shows a date menu with concrete dates, then a numbered time-slot menu, then a polling-start menu. Press Enter to use `.env` defaults, or choose a date with `1`, `2`, `3`, slots with a priority list such as `13,12,11`, `11-13`, `pm`, or `all`, and polling start as either now or 5 seconds before the selected date/time opens. Opening time is calculated as selected date + first-priority slot start time - `BOOKING_OPENS_HOURS`. It then opens a visible Chromium window. Log in once, then press Enter in the terminal. It will open three tabs, select the target date and one court per tab, refresh until one of your selected slots appears, click the first available match by priority, and keep looping until the page reports booking success.
-
-## Use A Persistent Chrome Login
-
-Run one command:
-
-```bash
-npm run start:default-chrome
-```
-
-From this folder, you can also run:
+From this folder:
 
 ```bash
 ./run
 ```
 
-It starts a dedicated Chrome profile at `.chrome-debug-profile` with remote debugging, then connects the booking script to it. Chrome no longer allows remote debugging against your normal default profile, so the first run may require login once. After that, this dedicated profile keeps your UofT login cookies for future runs.
+Equivalent npm command:
 
-If regular Chrome is already open and blocks debug startup, the script will ask whether to quit Chrome and start the booking profile.
+```bash
+npm run start:default-chrome
+```
 
-To verify Chrome is really in debug mode, open:
+This starts a dedicated Chrome profile at `.chrome-debug-profile` with remote debugging enabled, then connects the booking script to it. The first run may require login once. Future runs reuse the same profile and cookies.
+
+## Startup Menus
+
+Date menu:
+
+```txt
+Select target date:
+  1. Today - 2026-06-15 (Jun 15, 2026)
+  2. Tomorrow - 2026-06-16 (Jun 16, 2026)
+  3. Day after tomorrow - 2026-06-17 (Jun 17, 2026)
+```
+
+Slot menu examples:
+
+```txt
+13,12,11   # 8 PM, then 7 PM, then 6 PM
+11-13      # 6 PM, then 7 PM, then 8 PM
+pm         # all PM slots
+all        # all slots
+```
+
+Polling menu:
+
+```txt
+1. Start now
+2. Start 5s before selected slot opens
+```
+
+The opening time is calculated as:
+
+```txt
+selected date + first-priority slot start time - BOOKING_OPENS_HOURS - POLLING_LEAD_SECONDS
+```
+
+For example, if the selected date is `Jun 17`, the first-priority slot is `1 - 1:55 PM`, `BOOKING_OPENS_HOURS=48`, and `POLLING_LEAD_SECONDS=5`, polling starts at `Jun 15 12:59:55 PM`.
+
+## Chrome Debug Mode
+
+Chrome requires a non-default profile for remote debugging. This project uses:
+
+```txt
+.chrome-debug-profile
+```
+
+To verify that the debug port is active, open:
 
 ```txt
 http://127.0.0.1:9222/json/version
 ```
 
-If you see JSON with browser details, the debug port is active. The Chrome window itself may look completely normal.
+If JSON with browser details appears, the booking script can connect.
 
-## Test One Click
+## Useful Commands
 
 ```bash
+./run
+npm run start
+npm run start:default-chrome
+npm run test:menu
 npm run test:click
-```
-
-This opens one browser tab, selects `TEST_FACILITY` plus the configured date, clicks exactly one matching `Book Now` button, waits a few seconds, and prints whether success/failure/captcha UI appeared. If `TEST_SLOTS` is blank, it uses `TARGET_SLOTS`, then `TARGET_SLOT`.
-
-## Connect To A Separate Chrome Profile
-
-Start Chrome with remote debugging:
-
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/uoft-booking-chrome
-```
-
-Open the booking page and log in in that Chrome window, then run:
-
-```bash
-npm run start:cdp
 ```
 
 ## Notes
 
-- Keep the browser visible near 8 PM so you can solve reCAPTCHA quickly.
-- `REFRESH_MS=500` to `1000` is a reasonable range.
-- If the site changes the slot text, inspect the button's `data-slot-text` and update `TARGET_SLOTS`.
+- Keep the browser visible when confirmation or CAPTCHA may appear.
+- `REFRESH_MS=500` to `1000` is usually a reasonable range.
+- If the site changes slot labels, inspect the button's `data-slot-text` and update `TARGET_SLOTS`.
+- If you want non-interactive runs, set the menu flags to `false` and provide explicit `.env` values.

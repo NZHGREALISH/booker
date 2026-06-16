@@ -22,7 +22,7 @@ const config = {
   ),
   targetDate: process.env.TEST_DATE?.trim() || process.env.TARGET_DATE?.trim() || '',
   targetDateText: process.env.TEST_DATE_TEXT?.trim() || process.env.TARGET_DATE_TEXT?.trim() || '',
-  testFacility: process.env.TEST_FACILITY?.trim() || 'Court 03-AC-Badminton',
+  testFacility: process.env.TEST_FACILITY?.trim() || csvEnv('TARGET_FACILITIES', [])[0] || '',
   mode: process.env.BOOKER_MODE || 'persistent',
   cdpUrl: process.env.CDP_URL || 'http://127.0.0.1:9222',
   userDataDir: process.env.USER_DATA_DIR || '.browser-profile',
@@ -31,6 +31,9 @@ const config = {
 validateCommonConfig(config);
 if (config.targetSlots.length === 0) {
   throw new Error('TEST_SLOTS/TARGET_SLOTS/TARGET_SLOT must contain at least one slot.');
+}
+if (!config.testFacility) {
+  throw new Error('TEST_FACILITY or TARGET_FACILITIES must contain at least one facility.');
 }
 
 const browserState = await openBrowser(config);
