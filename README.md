@@ -11,6 +11,13 @@ It does not bypass CAPTCHA or confirmation dialogs. It clicks only when the page
 
 ## Quick Start
 
+Clone the repo:
+
+```bash
+git clone https://github.com/NZHGREALISH/booker.git
+cd booker
+```
+
 Install once:
 
 ```bash
