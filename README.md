@@ -46,6 +46,8 @@ From this folder:
 ./run
 ```
 
+Each run writes a timestamped log file under `logs/` while still printing output in the terminal.
+
 Equivalent npm command:
 
 ```bash
