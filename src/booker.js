@@ -25,6 +25,7 @@ const BOOKING_SLOT_MENU = [
   '1 - 1:55 PM',
   '2 - 2:55 PM',
   '3 - 3:55 PM',
+  '4 - 4:50 PM',
   '5 - 5:55 PM',
   '6 - 6:55 PM',
   '7 - 7:55 PM',
@@ -286,8 +287,8 @@ async function chooseTargetSlots(defaultSlots) {
       console.log(`  ${String(index + 1).padStart(2, ' ')}. ${slot}`);
     });
     console.log('\nExamples:');
-    console.log('  13,12,11   -> 8 PM, then 7 PM, then 6 PM');
-    console.log('  11-13      -> 6 PM, then 7 PM, then 8 PM');
+    console.log('  14,13,12   -> 8 PM, then 7 PM, then 6 PM');
+    console.log('  12-14      -> 6 PM, then 7 PM, then 8 PM');
     console.log('  pm         -> all PM slots');
     console.log('  all        -> all slots');
 

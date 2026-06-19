@@ -8,19 +8,19 @@ import {
   parseBookingSlotStartDate,
 } from './booker.js';
 
-assert.deepEqual(parseSlotMenuSelection('13,12,11'), [
+assert.deepEqual(parseSlotMenuSelection('14,13,12'), [
   '8 - 8:50 PM',
   '7 - 7:55 PM',
   '6 - 6:55 PM',
 ]);
 
-assert.deepEqual(parseSlotMenuSelection('11-13'), [
+assert.deepEqual(parseSlotMenuSelection('12-14'), [
   '6 - 6:55 PM',
   '7 - 7:55 PM',
   '8 - 8:50 PM',
 ]);
 
-assert.deepEqual(parseSlotMenuSelection('13-11'), [
+assert.deepEqual(parseSlotMenuSelection('14-12'), [
   '8 - 8:50 PM',
   '7 - 7:55 PM',
   '6 - 6:55 PM',
@@ -31,6 +31,7 @@ assert.deepEqual(parseSlotMenuSelection('pm'), [
   '1 - 1:55 PM',
   '2 - 2:55 PM',
   '3 - 3:55 PM',
+  '4 - 4:50 PM',
   '5 - 5:55 PM',
   '6 - 6:55 PM',
   '7 - 7:55 PM',

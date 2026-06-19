@@ -60,16 +60,16 @@ The first time, a browser window opens. Log in manually, navigate if needed, the
 3. Choose target slots by priority:
 
 ```txt
-13,12,11
+14,13,12
 ```
 
-This means: try slot 13 first, then 12, then 11.
+This means: try slot 14 first, then 13, then 12.
 
 Useful slot choices:
 
 ```txt
-13,12,11   -> 8 PM, then 7 PM, then 6 PM
-11-13      -> 6 PM, then 7 PM, then 8 PM
+14,13,12   -> 8 PM, then 7 PM, then 6 PM
+12-14      -> 6 PM, then 7 PM, then 8 PM
 pm         -> all PM slots
 all        -> all slots
 ```
